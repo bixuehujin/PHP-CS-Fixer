@@ -106,6 +106,22 @@ class Demo {
     {
         return 1;
     }
+
+    /**
+     * @param int ...$args
+     * @return mixed
+     */
+    public function variadics1(int ...$args)
+    {
+    }
+
+    /**
+     * @param mixed ...$args
+     * @return mixed
+     */
+    public function variadics2(...$args)
+    {
+    }
 }
 CODE,
                 <<<'CODE'
@@ -130,6 +146,14 @@ class Demo {
     public function nullable($a, ?int $b): ?int
     {
         return 1;
+    }
+
+    public function variadics1(int ...$args)
+    {
+    }
+
+    public function variadics2(...$args)
+    {
     }
 }
 CODE,

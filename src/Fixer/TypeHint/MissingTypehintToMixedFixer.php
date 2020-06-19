@@ -66,6 +66,13 @@ CODE
         }
     }
 
+    protected function isVariadics(Tokens $tokens, $index)
+    {
+        $index = $tokens->getPrevMeaningfulToken($index);
+
+        return $tokens[$index]->isGivenKind(T_ELLIPSIS);
+    }
+
     protected function resolveFunctionSignature(Tokens $tokens, $funcName, $startPos, $endPos)
     {
         $analyzer = new ArgumentsAnalyzer();
@@ -89,9 +96,14 @@ CODE
                 $hasMixed = true;
             }
 
+            $name = $argument->getName();
+            if ($this->isVariadics($tokens, $argument->getNameIndex())) {
+                $name = '...' . $name;
+            }
+
             $commentList[] = [
                 'tag' => 'param',
-                'name' => $argument->getName(),
+                'name' => $name,
                 'type' => $type,
             ];
         }
