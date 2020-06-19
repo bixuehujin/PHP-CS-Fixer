@@ -21,7 +21,7 @@ use PhpCsFixer\Tests\Test\AbstractFixerTestCase;
 final class MissingTypehintToMixedFixerTest extends AbstractFixerTestCase
 {
     /**
-     * @param string      $expected
+     * @param string $expected
      * @param null|string $input
      *
      * @dataProvider provideFixCases
@@ -49,7 +49,7 @@ class Demo {
     /**
      * @var mixed
      */
-    public $c;
+    static public $c;
 }
 CODE,
                 <<<'CODE'
@@ -60,7 +60,7 @@ class Demo {
      * @var string property desc
      */
     public $b;
-    public $c;
+    static public $c;
 }
 CODE,
             ],
@@ -73,7 +73,7 @@ class Demo {
      * @param int $b
      * @return float
      */
-    public function foo($a, int $b): float
+    static public function foo($a, int $b): float
     {
         return 1.1;
     }
@@ -86,17 +86,25 @@ class Demo {
     public function bar($a, int $b)
     {
     }
+
+    public function bar2(int $a, int $b): void
+    {
+    }
 }
 CODE,
                 <<<'CODE'
 <?php
 class Demo {
-    public function foo($a, int $b): float
+    static public function foo($a, int $b): float
     {
         return 1.1;
     }
 
     public function bar($a, int $b)
+    {
+    }
+
+    public function bar2(int $a, int $b): void
     {
     }
 }

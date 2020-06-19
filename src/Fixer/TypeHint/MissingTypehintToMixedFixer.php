@@ -53,16 +53,62 @@ CODE
 
     protected function applyFix(\SplFileInfo $file, Tokens $tokens)
     {
+        $this->insertedTokens = 0;
         $analyzer = new TokensAnalyzer($tokens);
         $elements = $analyzer->getClassyElements();
 
         foreach ($elements as $index => $element) {
             if ('property' === $element['type']) {
-                $this->fixProperty($index, $tokens);
+                $this->fixProperty($index + $this->insertedTokens, $tokens);
             } elseif ('method' === $element['type']) {
-                $this->fixMethod($index, $tokens);
+                $this->fixMethod($index + $this->insertedTokens, $tokens);
             }
         }
+    }
+
+    protected function resolveFunctionSignature(Tokens $tokens, $startPos, $endPos)
+    {
+        $analyzer = new ArgumentsAnalyzer();
+        $arguments = $analyzer->getArguments($tokens, $startPos, $endPos);
+
+        $commentList = [];
+        $hasMixed = false;
+
+        foreach ($arguments as $start => $end) {
+            /** @var ArgumentAnalysis $argument */
+            $argument = $analyzer->getArgumentInfo($tokens, $start, $end);
+
+            $typeInfo = $argument->getTypeAnalysis();
+            if ($typeInfo) {
+                $type = $typeInfo->getName();
+            } else {
+                $type = 'mixed';
+                $hasMixed = true;
+            }
+
+            $commentList[] = [
+                'tag' => 'param',
+                'name' => $argument->getName(),
+                'type' => $type,
+            ];
+        }
+
+        if (!$this->hasReturnTypeHint($tokens, $endPos)) {
+            $hasMixed = true;
+            $commentList[] = [
+                'tag' => 'return',
+                'type' => 'mixed',
+            ];
+        } else {
+            $nextIndex = $tokens->getNextMeaningfulToken($endPos);
+            $nextIndex = $tokens->getNextMeaningfulToken($nextIndex);
+            $commentList[] = [
+                'tag' => 'return',
+                'type' => $tokens[$nextIndex]->getContent(),
+            ];
+        }
+
+        return [$hasMixed, $commentList];
     }
 
     protected function fixMethod($index, Tokens $tokens)
@@ -84,51 +130,35 @@ CODE
             ++$initIndex;
         }
 
-        $analyzer = new ArgumentsAnalyzer();
-        $arguments = $analyzer->getArguments($tokens, $startPos, $endPos);
+        list($hasMixed, $commentList) = $this->resolveFunctionSignature($tokens, $startPos, $endPos);
 
-        $commentList = [];
-
-        foreach ($arguments as $start => $end) {
-            /** @var ArgumentAnalysis $argument */
-            $argument = $analyzer->getArgumentInfo($tokens, $start, $end);
-
-            $typeInfo = $argument->getTypeAnalysis();
-            if ($typeInfo) {
-                $type = $typeInfo->getName();
-            } else {
-                $type = 'mixed';
-            }
-
-            $commentList[] = [
-                'tag' => 'param',
-                'name' => $argument->getName(),
-                'type' => $type,
-            ];
-        }
-
-        if (!$this->hasReturnTypeHint($tokens, $endPos)) {
-            $commentList[] = [
-                'tag' => 'return',
-                'type' => 'mixed',
-            ];
-        } else {
-            $nextIndex = $tokens->getNextMeaningfulToken($endPos);
-            $nextIndex = $tokens->getNextMeaningfulToken($nextIndex);
-            $commentList[] = [
-                'tag' => 'return',
-                'type' => $tokens[$nextIndex]->getContent(),
-            ];
+        if (! $hasMixed) {
+            return;
         }
 
         $comment = $this->buildFunctionDocBlock($commentList);
 
-        $tokens->insertAt($index + $this->insertedTokens - 2, [
+        $docIndex = $this->shouldDocBlockAt($tokens, $index);
+        $tokens->insertAt($docIndex, [
             new Token([T_DOC_COMMENT, $comment]),
             new Token([T_WHITESPACE, "\n    "]),
         ]);
-
         $this->insertedTokens += 2;
+    }
+
+    protected function shouldDocBlockAt(Tokens $tokens, $index)
+    {
+        while (true) {
+            /** @var Token $token */
+            $token = $tokens[$index - 1];
+            if ($token->isGivenKind([T_STATIC, T_PUBLIC, T_PRIVATE, T_PROTECTED, T_FINAL, T_ABSTRACT])) {
+                $index --;
+            } elseif ($token->isWhitespace(' ')) {
+                $index --;
+            } else {
+                return $index;
+            }
+        }
     }
 
     protected function buildFunctionDocBlock(array $list)
@@ -153,8 +183,8 @@ CODE
 
         $doc = "/**\n     * @var mixed\n     */";
 
-        // TODO index - 2 should be more smart
-        $tokens->insertAt($index + $this->insertedTokens - 2, [
+        $docIndex = $this->shouldDocBlockAt($tokens, $index);
+        $tokens->insertAt($docIndex, [
             new Token([T_DOC_COMMENT, $doc]),
             new Token([T_WHITESPACE, "\n    "]),
         ]);
@@ -175,7 +205,6 @@ CODE
 
     private function hasReturnTypeHint(Tokens $tokens, $index)
     {
-//        $endFuncIndex = $tokens->getPrevTokenOfKind($index, [')']);
         $nextIndex = $tokens->getNextMeaningfulToken($index);
 
         return $tokens[$nextIndex]->isGivenKind(CT::T_TYPE_COLON);
