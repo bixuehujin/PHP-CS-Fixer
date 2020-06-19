@@ -70,6 +70,12 @@ CODE,
 class Demo {
     /**
      * @param mixed $a
+     */
+    public function __construct($a)
+    {
+    }
+    /**
+     * @param mixed $a
      * @param int $b
      * @return float
      */
@@ -90,11 +96,24 @@ class Demo {
     public function bar2(int $a, int $b): void
     {
     }
+
+    /**
+     * @param mixed $a
+     * @param int|null $b
+     * @return int|null
+     */
+    public function nullable($a, ?int $b): ?int
+    {
+        return 1;
+    }
 }
 CODE,
                 <<<'CODE'
 <?php
 class Demo {
+    public function __construct($a)
+    {
+    }
     static public function foo($a, int $b): float
     {
         return 1.1;
@@ -106,6 +125,11 @@ class Demo {
 
     public function bar2(int $a, int $b): void
     {
+    }
+
+    public function nullable($a, ?int $b): ?int
+    {
+        return 1;
     }
 }
 CODE,

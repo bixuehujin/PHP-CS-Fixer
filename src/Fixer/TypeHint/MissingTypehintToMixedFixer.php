@@ -66,7 +66,7 @@ CODE
         }
     }
 
-    protected function resolveFunctionSignature(Tokens $tokens, $startPos, $endPos)
+    protected function resolveFunctionSignature(Tokens $tokens, $funcName, $startPos, $endPos)
     {
         $analyzer = new ArgumentsAnalyzer();
         $arguments = $analyzer->getArguments($tokens, $startPos, $endPos);
@@ -81,6 +81,9 @@ CODE
             $typeInfo = $argument->getTypeAnalysis();
             if ($typeInfo) {
                 $type = $typeInfo->getName();
+                if ($typeInfo->isNullable()) {
+                    $type .= '|null';
+                }
             } else {
                 $type = 'mixed';
                 $hasMixed = true;
@@ -93,6 +96,10 @@ CODE
             ];
         }
 
+        if ($funcName === '__construct' || $funcName === '__destruct') {
+            return [$hasMixed, $commentList];
+        }
+
         if (!$this->hasReturnTypeHint($tokens, $endPos)) {
             $hasMixed = true;
             $commentList[] = [
@@ -102,9 +109,14 @@ CODE
         } else {
             $nextIndex = $tokens->getNextMeaningfulToken($endPos);
             $nextIndex = $tokens->getNextMeaningfulToken($nextIndex);
+            $content = $tokens[$nextIndex]->getContent();
+            if ($content === '?') {
+                $index = $tokens->getNextMeaningfulToken($nextIndex);
+                $content = $tokens[$index]->getContent() . '|null';
+            }
             $commentList[] = [
                 'tag' => 'return',
-                'type' => $tokens[$nextIndex]->getContent(),
+                'type' => $content,
             ];
         }
 
@@ -117,6 +129,7 @@ CODE
             return;
         }
 
+        $funcName = $tokens[$tokens->getNextMeaningfulToken($index)]->getContent();
         $initIndex = $index;
         while (true) {
             $token = $tokens[$initIndex];
@@ -130,7 +143,7 @@ CODE
             ++$initIndex;
         }
 
-        list($hasMixed, $commentList) = $this->resolveFunctionSignature($tokens, $startPos, $endPos);
+        list($hasMixed, $commentList) = $this->resolveFunctionSignature($tokens, $funcName, $startPos, $endPos);
 
         if (! $hasMixed) {
             return;
